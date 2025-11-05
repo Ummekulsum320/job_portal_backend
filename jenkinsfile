@@ -1,26 +1,19 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:20'
+            args '-u root:root'  // optional: run as root
+        }
+    }
 
     environment {
         APP_ID = "f8Cq0JwIpIz7gBQ4se_ML"
     }
 
     parameters {
-        string(
-            name: 'DEPLOY_URL_CRED_ID',
-            defaultValue: 'DEPLOY_URL',
-            description: 'Credentials ID for the deployment URL (Secret Text)'
-        )
-        string(
-            name: 'DEPLOY_KEY_CRED_ID',
-            defaultValue: 'DEPLOY_KEY',
-            description: 'Credentials ID for the deployment API key (Secret Text)'
-        )
-        string(
-            name: 'VITE_CANDIDATES_ENDPOINT',
-            defaultValue: 'VITE_CANDIDATES_ENDPOINT',
-            description: 'Endpoint for candidates API used by the frontend (exported into .env)'
-        )
+        string(name: 'DEPLOY_URL_CRED_ID', defaultValue: 'DEPLOY_URL', description: 'Deployment URL credentials ID')
+        string(name: 'DEPLOY_KEY_CRED_ID', defaultValue: 'DEPLOY_KEY', description: 'Deployment API key credentials ID')
+        string(name: 'VITE_CANDIDATES_ENDPOINT', defaultValue: 'VITE_CANDIDATES_ENDPOINT', description: 'Frontend API endpoint')
     }
 
     stages {
@@ -33,13 +26,13 @@ pipeline {
         stage('Setup .env') {
             steps {
                 sh "echo 'VITE_CANDIDATES_ENDPOINT=${params.VITE_CANDIDATES_ENDPOINT}' > .env"
-                sh 'echo ".env created with VITE_CANDIDATES_ENDPOINT"'
+                sh 'echo ".env created"'
             }
         }
 
         stage('Install dependencies') {
             steps {
-                sh 'node -v && npm --version && (npm ci || npm install)'
+                sh 'node -v && npm -v && npm ci || npm install'
             }
         }
 
@@ -63,42 +56,16 @@ pipeline {
                         -H 'accept: application/json' \
                         -H 'Content-Type: application/json' \
                         -H "x-api-key: $DEPLOY_KEY" \
-                        --data-binary "$json_payload" \
-                        -w "\\nHTTP %{http_code}\\n"
+                        --data-binary "$json_payload"
                 '''
             }
-            mail to: 'ummekulsum9855@gmail.com',
-                 subject: "Jenkins Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: """Hello,
-
-The Jenkins pipeline for ${env.JOB_NAME} (build #${env.BUILD_NUMBER}) has succeeded.
-
-* Branch: ${env.BRANCH_NAME}
-* Commit: ${env.GIT_COMMIT}
-* Build URL: ${env.BUILD_URL}
-
-Deployment API was triggered successfully.
-
-Regards,
-Jenkins"""
         }
 
         failure {
-            echo "❌ Pipeline failed, sending error email..."
+            echo "❌ Pipeline failed, sending email..."
             mail to: 'ummekulsum9855@gmail.com',
                  subject: "Jenkins Failure: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: """Hello,
-
-The Jenkins pipeline for ${env.JOB_NAME} (build #${env.BUILD_NUMBER}) has failed.
-
-* Branch: ${env.BRANCH_NAME}
-* Commit: ${env.GIT_COMMIT}
-* Build URL: ${env.BUILD_URL}
-
-Please check the console output for details.
-
-Regards,
-Jenkins"""
+                 body: "Pipeline failed. Check Jenkins console output."
         }
     }
 }
