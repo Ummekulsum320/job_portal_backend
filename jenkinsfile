@@ -1,53 +1,42 @@
 pipeline {
     agent any
 
-    options {
-        skipDefaultCheckout(true)
-        timestamps()
-        timeout(time: 60, unit: 'MINUTES')
+    environment {
+        APP_ID = "job-portal-backend-uaecju"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                deleteDir()
-                git url: 'https://github.com/Ummekulsum320/job_portal_backend.git', branch: 'main'
+                git branch: 'main', url: 'https://github.com/Ummekulsum320/job_portal_backend'
             }
         }
 
-        stage('Build') {
+        stage('Setup Python Env') {
             steps {
-                echo "Building the project..."
-                // TODO: Replace with your actual build command. Example for Node:
-                // sh 'npm install && npm run build'
-                // Example for Maven:
-                // sh 'mvn clean package'
-                sh 'YOUR_BUILD_COMMAND_HERE'
+                sh '''
+                python3 -m venv venv
+                . venv/bin/activate
+                pip install -r requirements.txt
+                '''
             }
         }
 
-        stage('Test') {
+        stage('Run Migrations') {
             steps {
-                echo "Running tests..."
-                // TODO: Replace with your actual test command. Example:
-                // sh 'npm test'
-                // or sh 'mvn test'
-                sh 'YOUR_TEST_COMMAND_HERE'
-            }
-            post {
-                always {
-                    // TODO: Update path to test reports if needed
-                    junit '**/target/surefire-reports/*.xml'
-                }
+                sh '''
+                . venv/bin/activate
+                python manage.py migrate
+                '''
             }
         }
 
-        stage('Deploy (optional)') {
-            when {
-                branch 'main'
-            }
+        stage('Run Tests') {
             steps {
-                echo "Deploy stage placeholder. Actual deployment handled in post‑success."
+                sh '''
+                . venv/bin/activate
+                python check.py
+                '''
             }
         }
     }
@@ -61,18 +50,10 @@ pipeline {
                 string(credentialsId: 'DEPLOY_KEY', variable: 'DEPLOY_KEY')
             ]) {
                 sh '''
-                # ensure APP_ID is set either via env or Jenkins Global Variables
-                if [ -z "$APP_ID" ]; then
-                  echo "ERROR: APP_ID is not defined"
-                  exit 1
-                fi
-
                 json_payload=$(printf '{"applicationId":"%s"}' "$APP_ID")
-                echo "Triggering deployment..."
-                echo "Deploy URL: $DEPLOY_URL"
                 curl -fS -X POST "$DEPLOY_URL" \
-                     -H "accept: application/json" \
-                     -H "Content-Type: application/json" \
+                     -H 'accept: application/json' \
+                     -H 'Content-Type: application/json' \
                      -H "x-api-key: $DEPLOY_KEY" \
                      --data-binary "$json_payload" \
                      -w "\\nHTTP %{http_code}\\n"
@@ -86,9 +67,9 @@ Hello,
 
 The Jenkins pipeline for *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) has succeeded.
 
-* Branch: ${env.BRANCH_NAME}
-* Commit: ${env.GIT_COMMIT}
-* Build URL: ${env.BUILD_URL}
+Branch: ${env.BRANCH_NAME}
+Commit: ${env.GIT_COMMIT}
+Build URL: ${env.BUILD_URL}
 
 Deployment API was triggered successfully.
 
@@ -106,22 +87,15 @@ Hello,
 
 The Jenkins pipeline for *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) has failed.
 
-* Branch: ${env.BRANCH_NAME}
-* Commit: ${env.GIT_COMMIT}
-* Build URL: ${env.BUILD_URL}
+Branch: ${env.BRANCH_NAME}
+Commit: ${env.GIT_COMMIT}
+Build URL: ${env.BUILD_URL}
 
 Please check the Jenkins console output for details.
 
 Regards,  
 Jenkins
 """
-        }
-
-        always {
-            echo "This always runs — cleanup, archive artifacts, etc."
-            // TODO: Adjust artifact path if different (e.g., if build outputs a .jar or .war elsewhere)
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            // Optionally clean workspace here with: deleteDir()
         }
     }
 }
