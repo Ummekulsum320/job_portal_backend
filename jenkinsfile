@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        // e.g. APP_ID = "my‑app‑id", DB_URL, etc.
-    }
-
     options {
         skipDefaultCheckout(true)
         timestamps()
@@ -22,10 +18,11 @@ pipeline {
         stage('Build') {
             steps {
                 echo "Building the project..."
-                // TODO: replace with your actual build command, e.g.:
+                // TODO: Replace with your actual build command
+                // Examples:
                 // sh 'mvn clean package'
-                // or sh './gradlew build'
-                // or sh 'npm install && npm run build'
+                // sh './gradlew build'
+                // sh 'npm install && npm run build'
                 sh '<YOUR_BUILD_COMMAND>'
             }
         }
@@ -33,29 +30,27 @@ pipeline {
         stage('Test') {
             steps {
                 echo "Running tests..."
-                // TODO: replace with your actual test command:
+                // TODO: Replace with your actual test command
+                // Examples:
                 // sh 'mvn test'
-                // or sh './gradlew test'
-                // or sh 'npm test'
+                // sh './gradlew test'
+                // sh 'npm test'
                 sh '<YOUR_TEST_COMMAND>'
             }
             post {
                 always {
-                    // TODO: Update path to your test reports if needed
+                    // TODO: Adjust path to your test reports if needed
                     junit '**/target/surefire-reports/*.xml'
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy (optional)') {
             when {
                 branch 'main'
             }
             steps {
-                echo "Deploying the project..."
-                // You may choose to trigger an API or run scripts instead of this stage since you trigger via post‑success below
-                // sh './deploy.sh'
-                echo "Skipping direct deployment in this stage, using post‑success hook instead."
+                echo "Deploy stage placeholder. Actual deployment happens in post-success."
             }
         }
     }
@@ -120,8 +115,8 @@ Jenkins
         }
 
         always {
-            echo "This always runs — cleanup, archive, etc."
-            // TODO: If your artifact path is different, update it
+            echo "This always runs — cleanup, archive artifacts, etc."
+            // TODO: Adjust artifact path if different
             archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
             // You could also clean workspace here if needed
         }
