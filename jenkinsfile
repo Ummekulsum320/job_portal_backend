@@ -1,27 +1,89 @@
-post {
-    success {
-        echo "✅ Tests passed, triggering deployment API..."
+pipeline {
+    agent any
 
-        withCredentials([
-            string(credentialsId: 'DEPLOY_URL', variable: 'DEPLOY_URL'),
-            string(credentialsId: 'DEPLOY_KEY', variable: 'DEPLOY_KEY')
-        ]) {
-            sh '''
-            json_payload=$(printf '{"applicationId":"%s"}' "$APP_ID")
-            echo "Triggering deployment..."
-            echo "Deploy URL: $DEPLOY_URL"
-            curl -fS -X POST "$DEPLOY_URL" \
-                 -H 'accept: application/json' \
-                 -H 'Content-Type: application/json' \
-                 -H "x-api-key: $DEPLOY_KEY" \
-                 --data-binary "$json_payload" \
-                 -w "\\nHTTP %{http_code}\\n"
-            '''
+    environment {
+        // e.g. APP_ID = "my‑app‑id", DB_URL, etc.
+    }
+
+    options {
+        skipDefaultCheckout(true)
+        timestamps()
+        timeout(time: 60, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                deleteDir()
+                git url: 'https://github.com/Ummekulsum320/job_portal_backend.git', branch: 'main'
+            }
         }
 
-        mail to: 'ummekulsum9855@gmail.com',
-             subject: "✅ Jenkins Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-             body: """
+        stage('Build') {
+            steps {
+                echo "Building the project..."
+                // TODO: replace with your actual build command, e.g.:
+                // sh 'mvn clean package'
+                // or sh './gradlew build'
+                // or sh 'npm install && npm run build'
+                sh '<YOUR_BUILD_COMMAND>'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo "Running tests..."
+                // TODO: replace with your actual test command:
+                // sh 'mvn test'
+                // or sh './gradlew test'
+                // or sh 'npm test'
+                sh '<YOUR_TEST_COMMAND>'
+            }
+            post {
+                always {
+                    // TODO: Update path to your test reports if needed
+                    junit '**/target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo "Deploying the project..."
+                // You may choose to trigger an API or run scripts instead of this stage since you trigger via post‑success below
+                // sh './deploy.sh'
+                echo "Skipping direct deployment in this stage, using post‑success hook instead."
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Tests passed, triggering deployment API..."
+
+            withCredentials([
+                string(credentialsId: 'DEPLOY_URL', variable: 'DEPLOY_URL'),
+                string(credentialsId: 'DEPLOY_KEY', variable: 'DEPLOY_KEY')
+            ]) {
+                sh '''
+                json_payload=$(printf '{"applicationId":"%s"}' "$APP_ID")
+                echo "Triggering deployment..."
+                echo "Deploy URL: $DEPLOY_URL"
+                curl -fS -X POST "$DEPLOY_URL" \
+                     -H 'accept: application/json' \
+                     -H 'Content-Type: application/json' \
+                     -H "x-api-key: $DEPLOY_KEY" \
+                     --data-binary "$json_payload" \
+                     -w "\\nHTTP %{http_code}\\n"
+                '''
+            }
+
+            mail to: 'ummekulsum9855@gmail.com',
+                 subject: "✅ Jenkins Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: """
 Hello,
 
 The Jenkins pipeline for *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) has succeeded.
@@ -35,13 +97,13 @@ Deployment API was triggered successfully.
 Regards,  
 Jenkins
 """
-    }
+        }
 
-    failure {
-        echo "❌ Pipeline failed, sending error email..."
-        mail to: 'ummekulsum9855@gmail.com',
-             subject: "❌ Jenkins Failure: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-             body: """
+        failure {
+            echo "❌ Pipeline failed, sending error email..."
+            mail to: 'ummekulsum9855@gmail.com',
+                 subject: "❌ Jenkins Failure: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: """
 Hello,
 
 The Jenkins pipeline for *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) has failed.
@@ -55,5 +117,13 @@ Please check the Jenkins console output for details.
 Regards,  
 Jenkins
 """
+        }
+
+        always {
+            echo "This always runs — cleanup, archive, etc."
+            // TODO: If your artifact path is different, update it
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            // You could also clean workspace here if needed
+        }
     }
 }
