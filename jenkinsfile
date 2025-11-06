@@ -18,28 +18,25 @@ pipeline {
         stage('Build') {
             steps {
                 echo "Building the project..."
-                // TODO: Replace with your actual build command
-                // Examples:
-                // sh 'mvn clean package'
-                // sh './gradlew build'
+                // TODO: Replace with your actual build command. Example for Node:
                 // sh 'npm install && npm run build'
-                sh '<YOUR_BUILD_COMMAND>'
+                // Example for Maven:
+                // sh 'mvn clean package'
+                sh 'YOUR_BUILD_COMMAND_HERE'
             }
         }
 
         stage('Test') {
             steps {
                 echo "Running tests..."
-                // TODO: Replace with your actual test command
-                // Examples:
-                // sh 'mvn test'
-                // sh './gradlew test'
+                // TODO: Replace with your actual test command. Example:
                 // sh 'npm test'
-                sh '<YOUR_TEST_COMMAND>'
+                // or sh 'mvn test'
+                sh 'YOUR_TEST_COMMAND_HERE'
             }
             post {
                 always {
-                    // TODO: Adjust path to your test reports if needed
+                    // TODO: Update path to test reports if needed
                     junit '**/target/surefire-reports/*.xml'
                 }
             }
@@ -50,7 +47,7 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo "Deploy stage placeholder. Actual deployment happens in post-success."
+                echo "Deploy stage placeholder. Actual deployment handled in post‑success."
             }
         }
     }
@@ -64,12 +61,18 @@ pipeline {
                 string(credentialsId: 'DEPLOY_KEY', variable: 'DEPLOY_KEY')
             ]) {
                 sh '''
+                # ensure APP_ID is set either via env or Jenkins Global Variables
+                if [ -z "$APP_ID" ]; then
+                  echo "ERROR: APP_ID is not defined"
+                  exit 1
+                fi
+
                 json_payload=$(printf '{"applicationId":"%s"}' "$APP_ID")
                 echo "Triggering deployment..."
                 echo "Deploy URL: $DEPLOY_URL"
                 curl -fS -X POST "$DEPLOY_URL" \
-                     -H 'accept: application/json' \
-                     -H 'Content-Type: application/json' \
+                     -H "accept: application/json" \
+                     -H "Content-Type: application/json" \
                      -H "x-api-key: $DEPLOY_KEY" \
                      --data-binary "$json_payload" \
                      -w "\\nHTTP %{http_code}\\n"
@@ -116,9 +119,9 @@ Jenkins
 
         always {
             echo "This always runs — cleanup, archive artifacts, etc."
-            // TODO: Adjust artifact path if different
+            // TODO: Adjust artifact path if different (e.g., if build outputs a .jar or .war elsewhere)
             archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            // You could also clean workspace here if needed
+            // Optionally clean workspace here with: deleteDir()
         }
     }
 }
