@@ -2,55 +2,75 @@ pipeline {
     agent any
 
     environment {
-        APP_ID = "f8Cq0JwIpIz7gBQ4se_ML"  // Replace with your actual application ID
+        APP_ID = ""f8Cq0JwIpIz7gBQ4se_ML""
     }
 
     parameters {
-        string(
-            name: 'DEPLOY_URL_CRED_ID',
-            defaultValue: 'DEPLOY_URL',
-            description: 'Credentials ID for the deployment URL (Secret Text)'
-        )
-        string(
-            name: 'DEPLOY_KEY_CRED_ID',
-            defaultValue: 'DEPLOY_KEY',
-            description: 'Credentials ID for the deployment API key (Secret Text)'
-        )
-        string(
-            name: 'VITE_CANDIDATES_ENDPOINT',
-            defaultValue: 'VITE_CANDIDATES_ENDPOINT',
-            description: 'Endpoint for candidates API used by the frontend (exported into .env)'
-        )
+        string(name: 'DEPLOY_URL_CRED_ID', defaultValue: 'DEPLOY_URL', description: 'Credentials ID for the deployment URL (Secret Text)')
+        string(name: 'DEPLOY_KEY_CRED_ID', defaultValue: 'DEPLOY_KEY', description: 'Credentials ID for the deployment API key (Secret Text)')
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Setup .env') {
-            steps {
-                sh "echo 'VITE_CANDIDATES_ENDPOINT=${params.VITE_CANDIDATES_ENDPOINT}' > .env"
-                sh 'echo ".env created with VITE_CANDIDATES_ENDPOINT"'
-            }
-        }
-
-        stage('Install dependencies') {
+        stage('Setup Python Environment') {
             steps {
                 sh '''
-                    node -v
-                    npm -v
-                    npm ci || npm install
+                python3 -m venv .venv
+                . .venv/bin/activate
+                pip install --upgrade pip
                 '''
             }
         }
 
-        stage('Run tests') {
+        stage('Install Requirements') {
             steps {
-                sh 'npm test -- --run'
+                sh '''
+                . .venv/bin/activate
+                pip install -r requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Migrations') {
+            steps {
+                sh '''
+                . .venv/bin/activate
+                python manage.py makemigrations
+                python manage.py migrate
+                '''
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh '''
+                . .venv/bin/activate
+                python manage.py test
+                '''
+            }
+        }
+
+        stage('Start Server') {
+            steps {
+                sh '''
+                . .venv/bin/activate
+                nohup python manage.py runserver 0.0.0.0:8000 &
+                sleep 10
+                '''
+            }
+        }
+
+        stage('Run API Test Script') {
+            steps {
+                sh '''
+                . .venv/bin/activate
+                python check.py
+                '''
             }
         }
     }
@@ -63,21 +83,23 @@ pipeline {
                 string(credentialsId: params.DEPLOY_KEY_CRED_ID, variable: 'DEPLOY_KEY')
             ]) {
                 sh '''
-                    json_payload=$(printf '{"applicationId":"%s"}' "$APP_ID")
-                    curl -fS -X POST "$DEPLOY_URL" \
-                        -H 'accept: application/json' \
-                        -H 'Content-Type: application/json' \
-                        -H "x-api-key: $DEPLOY_KEY" \
-                        --data-binary "$json_payload" \
-                        -w "\\nHTTP %{http_code}\\n"
+                json_payload=$(printf '{"applicationId":"%s"}' "$APP_ID")
+                curl -fS -X POST "$DEPLOY_URL" \
+                     -H 'accept: application/json' \
+                     -H 'Content-Type: application/json' \
+                     -H "x-api-key: $DEPLOY_KEY" \
+                     --data-binary "$json_payload" \
+                     -w "\\nHTTP %{http_code}\\n"
                 '''
             }
 
+            // Success email
             mail to: 'ummekulsum9855@gmail.com',
-                 subject: "Jenkins Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: """Hello,
+                 subject: "✅ Jenkins Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: """
+Hello,
 
-The Jenkins pipeline for ${env.JOB_NAME} (build #${env.BUILD_NUMBER}) has succeeded.
+The Jenkins pipeline for *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) has succeeded.
 
 * Branch: ${env.BRANCH_NAME}
 * Commit: ${env.GIT_COMMIT}
@@ -85,26 +107,29 @@ The Jenkins pipeline for ${env.JOB_NAME} (build #${env.BUILD_NUMBER}) has succee
 
 Deployment API was triggered successfully.
 
-Regards,
-Jenkins"""
+Regards,  
+Jenkins
+"""
         }
 
         failure {
             echo "❌ Pipeline failed, sending error email..."
             mail to: 'ummekulsum9855@gmail.com',
-                 subject: "Jenkins Failure: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: """Hello,
+                 subject: "❌ Jenkins Failure: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: """
+Hello,
 
-The Jenkins pipeline for ${env.JOB_NAME} (build #${env.BUILD_NUMBER}) has failed.
+The Jenkins pipeline for *${env.JOB_NAME}* (build #${env.BUILD_NUMBER}) has failed.
 
 * Branch: ${env.BRANCH_NAME}
 * Commit: ${env.GIT_COMMIT}
 * Build URL: ${env.BUILD_URL}
 
-Please check the console output for details.
+Please check the Jenkins console output for details.
 
-Regards,
-Jenkins"""
+Regards,  
+Jenkins
+"""
         }
     }
 }
