@@ -2,7 +2,7 @@ import requests
 
 API_URL = "http://13.48.78.229:3000/api/project.all"
 api_key = "BwCvbzLwowTpmzTchqCtIYdymGnmtYAqaEIZOpVIGulvXZejeftGLiSikGHrtERv"
-app_name = "jjob-portal-backend-uaecju"
+app_name = "job-portal-backend-uaecju"
 # http://13.48.78.229:3000/api/application/deploy
 
 def get_application_id():
